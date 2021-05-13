@@ -1,0 +1,19 @@
+{
+    "name": "also/model",
+    "description": "model for sql queries and migration",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Akex Sorkin",
+            "email": "Alesorkin1980@gmail.com"
+        }
+    ],
+    "minimum-stability": "beta",
+    "autoload":{
+        "psr-4": {
+            "Also\\":""
+        }
+    },
+    "require": {}
+}
