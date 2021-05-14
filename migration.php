@@ -28,8 +28,7 @@ class Migration {
     }
 
     public function newTable($tableName,$file) {
-        global $types;
-        // $table = include_once $this->tablesPath.'/'.$file;
+        include_once __DIR__.'/types.php';
         include_once $this->tablesPath.'/'.$file;
         $result = $this->model->createTable($tableName,$table);
         $this->result($result,"Table $tableName created.");
@@ -41,13 +40,25 @@ class Migration {
     }
 
     private function result($result,$msg) {
-        if($result['error'] == null) echo $msg;
-        else if($result['error'] !== null) echo "Error: ".$result['error'][0];
+        if(gettype($result['result']) !== 'boolean' || $result['result']) echo $msg;
+        else echo "Error: ".$result['error'];
     }
 
     public function restoreTable($table) {
         $this->dropTable($table);
         $this->newTable($table,$table.'.php');
+    }
+    
+    public function fake($tableName,$times) {
+        include_once __DIR__.'/types.php';
+        include_once $this->tablesPath.'/'.$tableName.'.php';
+        $array = [];
+        for($i=0; $i<$times; $i++) {
+            $array[] = fake();
+        }
+        print_r($array);
+        $result = $this->model->insert($array,$tableName);
+        $this->result($result,'Done');
     }
 
     public function cli() {
@@ -62,43 +73,30 @@ class Migration {
         }
     }
 
-    public function fake($tableName,$times) {
-        $array = [];
+    public function query() {
+        $line = '';
+        $model = 'nomodel';
+        $error = '';
+        while($line !== 'exit') {
+            $line = readline("$model: ");
+            if($line == 'exit') exit;
+            else if(strpos($line,'model') !== false) {
+                $line = str_replace('model','',$line);
+                $line = trim($line,' ');
+                $this->model = $this->model->model($line);
+                $model = $line;
+            } else if($line == 'error') echo $error."  \r\n";
+            else if($line !== '') {
+                echo eval('print_r($this->model->'.$line.');')." \r\n ";
+            }
+            readline_add_history($line);
+        }
+        //dump history
+        // print_r(readline_list_history());
 
+        //dump variables
+        // print_r(readline_info());
     }
-
-    // fake(tableName,times) {
-    //     let array = []
-    //     for (let i = 0; i < times; i++) {
-    //         let tablePath = this.path.join(this.tablesPath,tableName+'.js')
-    //         let fake = require(tablePath)['fake']()
-    //         console.log(fake)
-    //         array.push(fake)
-    //     }
-    //     this.model.table = tableName
-    //     this.model.insert(array).run(data => console.log(data))
-    // }
-
-    // query() {
-    //     const readline = require('readline');
-    //     const rl = readline.createInterface({
-    //         input: process.stdin,
-    //         output: process.stdout
-    //     });
-    //     rl.on('line', (input) => {
-    //         if(input.includes('.')) {
-    //             let tableName = input.split('.')[0]
-    //             let query = input.split('.')[1]
-    //             this.model.table = tableName
-    //             new Function('model',`
-    //                 model.${query}.run(result=>{
-    //                     console.log(result)
-    //                 })
-    //             `)(this.model)
-    //         }
-    //         if(input == 'exit') rl.close();
-    //     });
-    // }
 
 
     public $modelTemplate = '<?php
@@ -115,8 +113,20 @@ $table = [
     "timestamp" => $types->timestamp
 ];
 
-    ';
-
+function fake() {
+    $faker = \Faker\Factory::create();
+    $fake = [
+        "username" => $faker->userName(),
+        "password" => $faker->password(),
+        "email" => $faker->email(),
+        "name" => $faker->name(),
+        "last_name" => $faker->lastName(),
+        "status" => 0,
+        "is_admin" => 0
+    ];
+    return $fake;
+}
+';
 
 
 }

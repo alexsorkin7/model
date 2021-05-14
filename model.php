@@ -2,9 +2,12 @@
 namespace Also;
 
 class Model {
+    public $table = '';
+    public $hash = PASSWORD_DEFAULT;
+
 	function __construct($con) {
 		if(gettype($con) == 'string') { // if sqlite
-			$this->con = new Sqlite3($con);
+			$this->con = new \Sqlite3($con);
 		} else if(gettype($con) == 'array') { // if mysql
 			$this->con = call_user_func_array('mysqli_connect',$con);
 			if(mysqli_connect_errno()) echo 'something wrong';
@@ -13,23 +16,48 @@ class Model {
 
 	public function model($tableName) {
 		$this->table = $tableName;
+        return $this;
 	}
 	
 	public function query($q) {
+        error_reporting(E_ERROR);
+        preg_match_all('/\;/',$q,$matches);
 		if(get_class($this->con) == 'SQLite3') {
-		try{
-			$this->con->enableExceptions(true);
-			return ['result'=>$this->con->query($q),'error' => null,'sql' => $q];
-		} catch(Exception $e) {
-			preg_match('/Exception\\:.*in/',$e,$errors);
-			return ['result' => null,'error' => $errors,'sql' => $q];
-        }
+            if(count($matches[0]) > 1) $result = $this->con->exec($q);
+            else $result = $this->con->query($q);
+            $error = $this->con->lastErrorMsg();
+            return [
+                'result'=>$result,
+                'error'=>$error,
+                'sql'=>$q,
+                'changes'=>$this->con->changes()
+            ];
 		} else if(get_class($this->con) == 'mysqli') {
-			$result = mysqli_query($this->con,$q);
-			if($this->con->error == '') return ['result'=>$result,'error'=>null,'sql' => $q];
-			else return ['result'=>null,'error'=>$this->con->error,'sql' => $q];
+            if(count($matches[0]) > 1) $result = mysqli_multi_query($this->con,$q);
+			else $result = mysqli_query($this->con,$q);
+            $error = mysqli_error($this->con);
+            return [
+                'result'=>$result,
+                'error'=>$error,
+                'sql'=>$q,
+                'warnings'=>$this->warnings($this->con),
+                'changes' => mysqli_affected_rows($this->con)
+            ];
 		}
 	}
+
+    private function warnings($db) {
+        $array = [];
+        $j = mysqli_warning_count($db);
+        if ($j > 0) {
+            $e = mysqli_get_warnings($db);
+            for ($i = 0; $i < $j; $i++) {
+                $array[] = $e;
+                $e->next();
+            }
+        }
+        return $array;
+    }
 
 	public function createTable($tableName,$fields) {
         $fieldString = '';
@@ -49,151 +77,115 @@ class Model {
         return $this->query($q);
     }
 
-    public function all($table = '') {
-		if($table == '') $table = $this->table;
-		$q = "SELECT * FROM $table;";
-		return $this->query($q);
+    public function insert($arrays,$table = '') {
+        if($table == '') $table = $this->table;
+        if($this->table == '') return 'Please add tableName';
+        $q = '';
+        foreach ($arrays as $array) {
+            $keys = '(';
+            $values = '(';
+            foreach ($array as $key => $value) {
+                $keys .= $key.',';
+                $value = $this->prepareValue($value,$key);
+                $values .= $value;
+            }
+            $values = substr_replace($values ,"", -1);
+            $keys = substr_replace($keys ,"", -1);
+            $keys .= ')';
+            $values .= ')';
+            $q .= "INSERT INTO ".$table." ".$keys." VALUES ".$values.';';
+        }
+        return $this->query($q);
     }
 
+    public function update($sets,$wheres) {
+        if($this->table == '') return 'Please add tableName';
+        $set = ' SET ';
+        foreach ($sets as $key => $value) {
+            $value = $this->prepareValue($value,$key);
+            $set .= " $key = $value";
+        }
+        $set = substr_replace($set ,"", -1);
+        $q = 'UPDATE '.$this->table.$set.$this->_where($wheres).';';
+        return $this->query($q);
+    }
 
-	// obj(sql) {
-    //     let obj = {
-    //         sql,
-    //         semicolon: () => {obj.sql = obj.sql.replace(';','')},
-    //         order: (field,order = 0) => {
-    //             obj.semicolon()
-    //             if(!order) order = ' ASC'
-    //             else order = ' DESC'
-    //             obj.sql += ` ORDER BY "${field}"${order};`; 
-    //             return obj
-    //         },
-    //         limit:(num)=> {
-    //             obj.semicolon()
-    //             obj.sql += ` LIMIT ${num};`; 
-    //             return obj
-    //         },
-    //         run: (fn) => {this.query([obj.sql],fn)},
-    //         first: (fn) => {
-    //             obj.limit(1)
-    //             this.query([obj].sql,fn)
-    //         },
-    //         async: async () => await this.queryAsync(sql)
-    //     }
-    //     return obj
-    // }
+    private function prepareValue($value,$key) {
+        $values = '';
+        if($key == 'password') $value = password_hash($value, $this->hash); 
+        $value = str_replace("'",'',$value);
+        $value = str_replace("`",'',$value);
+        $value = str_replace('"','',$value);
+        $value = "'".$value."',";
+        return $value;
+    }
 
-    // actionObj(sql) {
-    //     return {
-    //         sql,
-    //         run: (fn) => {this.query([sql],fn)},
-    //         async: async () => await this.queryAsync(sql)
-    //     } 
-    // }
+    public function all($options =[]) {
+        if($this->table == '') return 'Please add tableName';
+		$q = "SELECT * FROM ".$this->table." ".$this->options($options).';';
+		$result = $this->query($q);
+        return $this->fetch($result,$q);
+    }
 
+    public function where($wheres,$options =[]) {
+        if($this->table == '') return 'Please add tableName';
+        $q = 'SELECT * FROM '
+        .$this->table.$this->_where($wheres)
+        .$this->options($options).';';
+        $result = $this->query($q);
+        return $this->fetch($result,$q);
+    }
 
-    // where(where,table=this.table) {
-    //     if(table !== undefined) {
-    //         where = this.objToString(where)
-    //         let sql = `SELECT * FROM ${table} WHERE ${where};`
-    //         return this.obj(sql)
-    //     } else console.log('Table not specified')
-    // }
+    public function delete($wheres) {
+        if($this->table == '') return 'Please add tableName';
+        $q = 'DELETE FROM '.$this->table.' '.$this->_where($wheres).';';
+        return $this->query($q);
+    }
 
-    // delete(where,table=this.table) {
-    //     if(table !== undefined) {
-    //         where = this.objToString(where)
-    //         let sql = `DELETE FROM ${table} WHERE ${where};`
-    //         return this.actionObj(sql)
-    //     } else console.log('Table not specified')
-    // }
+    private function options($options) {
+        $q = '';
+        if(isset($options['orderby'])) {
+            $q .= " ORDER BY ". $options['orderby'].' ';
+        }
+        if(isset($options['order'])) {
+            $q .= ' '.$options['order'].' ';
+        }
+        if(isset($options['limit']) && is_numeric($options['limit'])) {
+            $q .= " LIMIT ".$options['limit'].' ';
+        }
+        return $q;
+    }
 
-    // update(set,where,table=this.table) {
-    //     if(table !== undefined) {
-    //         where = this.objToString(where)
-    //         set = this.objToString(set,true)
-    //         let sql = `UPDATE ${table} SET ${set} WHERE ${where};`
-    //         return this.actionObj(sql)
-    //     } else console.log('Table not specified')
-    // }
+    private function _where($wheres) {
+        $q = ' WHERE ';
+        foreach ($wheres as $key => $where) {
+            if($key < count($wheres) && $key > 0) {
+                if(strpos($where,'||') !== false) {
+                    $where = str_replace('||',' OR ',$where);
+                } else $where = ' AND '.$where;
+            }
+            $q .= $where;
+        }
+        return $q;
+    }
 
-    // insert(array,table = this.table) {
-    //     if(table !== undefined) {
-    //         let keys = '('+Object.keys(array[0]).toString()+')'
-    //         let values = ''
-    //         array.forEach(element => {
-    //             element = this.password(element)
-    //             let elementValues = Object.values(element)
-    //             values += '('
-    //             elementValues.forEach(elementValue => {
-    //                values += `"${elementValue}",` 
-    //             });
-    //             values= values.slice(0, -1)
-    //             values += '),'
-    //         });
-    //         values = values.slice(0, -1)
-    //         var sql = `INSERT INTO ${table} ${keys} VALUES ${values};`
-    //         return this.actionObj(sql)
-    //     } else console.log('Table not specified')
-    // }
+    private function fetch($result,$q) {
+        if(gettype($result['result']) !== 'boolean' || $result['result']) {
+            $array = [];
+            if(get_class($this->con) == 'SQLite3') {
+                while ($row = $result['result']->fetchArray(SQLITE3_ASSOC)) {
+                    $array[] = $row;
+                }
+            } else if(get_class($this->con) == 'mysqli') {
+                while($row = $result['result']->fetch_assoc()) {
+                    $array[] = $row;
+                }
+            }
+            $result = ['result' => $array,'error' => $result['error'],'sql'=>$q];
+        } 
+        return $result;
+    }
 
-    // password(obj) {
-    //     if(obj.password !== undefined) {
-    //         let crypto = require('crypto')
-    //         obj.password = crypto.createHmac('sha256', obj.password).digest('hex')
-    //     }
-    //     return obj
-    // }
-
-    // objToString(obj,isSet = false) {
-    //     let string = ''
-    //     let glue
-    //     let i = 0;
-    //     for(let key in obj) {
-    //         let sign = '='
-    //         let value = obj[key]
-    //         let crypto = require('crypto')
-    //         if(key == 'password') value = crypto.createHmac('sha256', value).digest('hex')
-    //         if(value !== undefined) {
-    //             value = value.toString()
-    //             if(value.includes('<')) {
-    //                 if(value.includes('<=')) {
-    //                     value = value.replace('<=','')
-    //                     sign = '<='
-    //                 } else {
-    //                     value = value.replace('<','')
-    //                     sign = '<'
-    //                 }
-    //             } else if(value.includes('>')) {
-    //                 if(value.includes('>=')) {
-    //                     value = value.replace('>=','')
-    //                     sign = '>='
-    //                 } else {
-    //                     value = value.replace('>','')
-    //                     sign = '>'
-    //                 }
-    //             }
-    //             if(isSet) glue = ','
-    //             else if(value.includes('|')) {
-    //                 value = value.replace('|','')
-    //                 glue = ' OR '
-    //             } else glue = ' AND '
-    //             if(i!== 0) string += glue
-    //             string += `${key}${sign}'${value}'`
-    //             i++
-    //         } else return {err:'something wrong'}
-    //     }
-    //     return string
-    // }
-
-    // createTable(tableName,fields) {
-    //     let fieldString = ''
-    //     for(let field in fields) {
-    //         fieldString += field + ' '+ fields[field]+','
-    //     }
-    //     fieldString = fieldString.slice(0, -1)
-    //     let sql = `CREATE TABLE ${tableName} (${fieldString})`
-    //     return this.actionObj(sql)
-    // }
 
 }
 
