@@ -8,6 +8,7 @@ class Migration {
 
     function __construct($tablesPath,$model,$template = '') {
         $this->tablesPath = $tablesPath;
+        if (!file_exists($tablesPath)) mkdir($tablesPath, 0777, true);
         $this->model = $model;
         if($template !== '') $this->template = $template;
     }
@@ -57,7 +58,8 @@ class Migration {
             $array[] = fake();
         }
         print_r($array);
-        $result = $this->model->insert($array,$tableName);
+        $this->model->model($tableName);
+        $result = $this->model->insert($array);
         $this->result($result,'Done');
     }
 
@@ -77,27 +79,28 @@ class Migration {
         $line = '';
         $model = 'nomodel';
         $error = '';
-        while($line !== 'exit') {
-            $line = readline("$model: ");
+        $resource = fopen('php://stdin', 'r');
+        while(true) {
+            echo "$model : ";
+            $line = fgets($resource);
+            // $line = readline($model.': ');
             if($line == 'exit') exit;
             else if(strpos($line,'model') !== false) {
                 $line = str_replace('model','',$line);
                 $line = trim($line,' ');
+                $line = trim(preg_replace('/\s\s+/', ' ', $line));
                 $this->model = $this->model->model($line);
                 $model = $line;
-            } else if($line == 'error') echo $error."  \r\n";
+            } else if($line == 'history') print_r(readline_list_history())."  \r\n";
             else if($line !== '') {
+                error_reporting(0);
                 echo eval('print_r($this->model->'.$line.');')." \r\n ";
             }
-            readline_add_history($line);
+            // readline_add_history($line);
         }
-        //dump history
-        // print_r(readline_list_history());
-
-        //dump variables
-        // print_r(readline_info());
+        // print_r(readline_list_history()); //dump history
+        // print_r(readline_info()); //dump variables
     }
-
 
     public $modelTemplate = '<?php
 $table = [
@@ -127,6 +130,4 @@ function fake() {
     return $fake;
 }
 ';
-
-
 }

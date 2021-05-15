@@ -7,6 +7,7 @@ class Model {
 
 	function __construct($con) {
 		if(gettype($con) == 'string') { // if sqlite
+            if (!file_exists(dirname($con))) mkdir(dirname($con), 0777, true);
 			$this->con = new \Sqlite3($con);
 		} else if(gettype($con) == 'array') { // if mysql
 			$this->con = call_user_func_array('mysqli_connect',$con);
@@ -25,24 +26,11 @@ class Model {
 		if(get_class($this->con) == 'SQLite3') {
             if(count($matches[0]) > 1) $result = $this->con->exec($q);
             else $result = $this->con->query($q);
-            $error = $this->con->lastErrorMsg();
-            return [
-                'result'=>$result,
-                'error'=>$error,
-                'sql'=>$q,
-                'changes'=>$this->con->changes()
-            ];
+            return $this->getResult($result,$q,'sqlite');
 		} else if(get_class($this->con) == 'mysqli') {
             if(count($matches[0]) > 1) $result = mysqli_multi_query($this->con,$q);
 			else $result = mysqli_query($this->con,$q);
-            $error = mysqli_error($this->con);
-            return [
-                'result'=>$result,
-                'error'=>$error,
-                'sql'=>$q,
-                'warnings'=>$this->warnings($this->con),
-                'changes' => mysqli_affected_rows($this->con)
-            ];
+            return $this->getResult($result,$q,'mysql');
 		}
 	}
 
@@ -77,8 +65,7 @@ class Model {
         return $this->query($q);
     }
 
-    public function insert($arrays,$table = '') {
-        if($table == '') $table = $this->table;
+    public function insert($arrays) {
         if($this->table == '') return 'Please add tableName';
         $q = '';
         foreach ($arrays as $array) {
@@ -93,7 +80,7 @@ class Model {
             $keys = substr_replace($keys ,"", -1);
             $keys .= ')';
             $values .= ')';
-            $q .= "INSERT INTO ".$table." ".$keys." VALUES ".$values.';';
+            $q .= "INSERT INTO ".$this->table." ".$keys." VALUES ".$values.';';
         }
         return $this->query($q);
     }
@@ -123,8 +110,7 @@ class Model {
     public function all($options =[]) {
         if($this->table == '') return 'Please add tableName';
 		$q = "SELECT * FROM ".$this->table." ".$this->options($options).';';
-		$result = $this->query($q);
-        return $this->fetch($result,$q);
+		return $this->query($q);
     }
 
     public function where($wheres,$options =[]) {
@@ -132,8 +118,7 @@ class Model {
         $q = 'SELECT * FROM '
         .$this->table.$this->_where($wheres)
         .$this->options($options).';';
-        $result = $this->query($q);
-        return $this->fetch($result,$q);
+        return $this->query($q);
     }
 
     public function delete($wheres) {
@@ -169,25 +154,40 @@ class Model {
         return $q;
     }
 
-    private function fetch($result,$q) {
-        if(gettype($result['result']) !== 'boolean' || $result['result']) {
-            $array = [];
-            if(get_class($this->con) == 'SQLite3') {
-                while ($row = $result['result']->fetchArray(SQLITE3_ASSOC)) {
-                    $array[] = $row;
-                }
-            } else if(get_class($this->con) == 'mysqli') {
-                while($row = $result['result']->fetch_assoc()) {
-                    $array[] = $row;
-                }
-            }
-            $result = ['result' => $array,'error' => $result['error'],'sql'=>$q];
-        } 
-        return $result;
+    private function getResult($result,$q,$db) {
+        $response = ['sql' => $q];
+        if($db == 'sqlite') {
+            $response['error'] = $this->con->lastErrorMsg();
+            $response['changes'] = $this->con->changes();
+            $response['result'] = $this->fetchSqlite($result);
+        } else if($db = 'mysql') {
+            $response['error'] = mysqli_error($this->con);
+            $response['warnings']=$this->warnings($this->con);
+            $response['changes'] = mysqli_affected_rows($this->con);
+            $response['result'] = $this->fetchMysql($result);
+        }
+        return $response;
     }
 
+    private function fetchSqlite($result) {
+        $array = [];
+        if($result->numColumns()) {
+            while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
+                $array[] = $row;
+            }
+            return $array;
+        } else return $result;
+    }
+
+    private function fetchMysql($result) {
+        $array = [];
+        if($result->num_rows) {
+            while($row = $result->fetch_assoc()) {
+                $array[] = $row;
+            }
+            return $array;
+        } else return $result;
+    }
 
 }
-
-
 ?>
