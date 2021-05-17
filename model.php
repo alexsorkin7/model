@@ -158,13 +158,17 @@ class Model {
         $response = ['sql' => $q];
         if($db == 'sqlite') {
             $response['error'] = $this->con->lastErrorMsg();
-            $response['changes'] = $this->con->changes();
-            $response['result'] = $this->fetchSqlite($result);
+            if($response['error'] == 'not an error')  {
+                $response['changes'] = $this->con->changes();
+                $response['result'] = $this->fetchSqlite($result);
+            }
         } else if($db = 'mysql') {
             $response['error'] = mysqli_error($this->con);
             $response['warnings']=$this->warnings($this->con);
-            $response['changes'] = mysqli_affected_rows($this->con);
-            $response['result'] = $this->fetchMysql($result);
+            if($response['error'] == '') {
+                $response['changes'] = mysqli_affected_rows($this->con);
+                $response['result'] = $this->fetchMysql($result);
+            }
         }
         return $response;
     }
@@ -181,12 +185,12 @@ class Model {
 
     private function fetchMysql($result) {
         $array = [];
-        if($result->num_rows) {
+        if(!$result == 1 && $result->num_rows !== 0) {
             while($row = $result->fetch_assoc()) {
                 $array[] = $row;
             }
-            return $array;
-        } else return $result;
+        }
+        return $array;
     }
 
 }
