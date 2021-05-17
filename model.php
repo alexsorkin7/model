@@ -99,11 +99,11 @@ class Model {
 
     private function prepareValue($value,$key) {
         $values = '';
-        if($key == 'password') $value = password_hash($value, $this->hash); 
         $value = str_replace("'",'',$value);
         $value = str_replace("`",'',$value);
         $value = str_replace('"','',$value);
         $value = "'".$value."',";
+        if($key == 'password') $value = password_hash($value, $this->hash); 
         return $value;
     }
 

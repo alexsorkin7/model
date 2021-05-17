@@ -32,7 +32,16 @@ class Migration {
         include_once __DIR__.'/types.php';
         include_once $this->tablesPath.'/'.$file;
         $result = $this->model->createTable($tableName,$table);
-        $this->result($result,"Table $tableName created.");
+        if(isset($result['result'])) {
+            echo "Table $tableName created. ";
+            if(count($data)) {
+                $result = $this->model
+                ->model($tableName)
+                ->insert([$data]);
+                if(isset($result['changes'])) echo $result['changes'].' rows was inserted';
+                else echo $result['error'];
+            }
+        } else echo "Error: ".$result['error'];
     }
 
     public function dropTable($tableName) {
@@ -41,7 +50,7 @@ class Migration {
     }
 
     private function result($result,$msg) {
-        if(gettype($result['result']) !== 'boolean' || $result['result']) echo $msg;
+        if(isset($result['result'])) echo $msg;
         else echo "Error: ".$result['error'];
     }
 
@@ -129,5 +138,7 @@ function fake() {
     ];
     return $fake;
 }
+
+$data = [];
 ';
 }
