@@ -99,11 +99,11 @@ class Model {
 
     private function prepareValue($value,$key) {
         $values = '';
+        if($key == 'password') $value = password_hash($value, $this->hash); 
         $value = str_replace("'",'',$value);
         $value = str_replace("`",'',$value);
         $value = str_replace('"','',$value);
         $value = "'".$value."',";
-        if($key == 'password') $value = password_hash($value, $this->hash); 
         return $value;
     }
 
@@ -161,6 +161,7 @@ class Model {
             if($response['error'] == 'not an error')  {
                 $response['changes'] = $this->con->changes();
                 $response['result'] = $this->fetchSqlite($result);
+                $response['lastId'] = $this->con->lastInsertRowID();
             }
         } else if($db = 'mysql') {
             $response['error'] = mysqli_error($this->con);
@@ -168,6 +169,7 @@ class Model {
             if($response['error'] == '') {
                 $response['changes'] = mysqli_affected_rows($this->con);
                 $response['result'] = $this->fetchMysql($result);
+                $response['lastId'] = $this->con->insert_id;
             }
         }
         return $response;
@@ -185,7 +187,7 @@ class Model {
 
     private function fetchMysql($result) {
         $array = [];
-        if(!$result == 1 && $result->num_rows !== 0) {
+        if($result !== 1 && $result->num_rows !== 0) {
             while($row = $result->fetch_assoc()) {
                 $array[] = $row;
             }

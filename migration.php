@@ -38,6 +38,7 @@ class Migration {
                 $result = $this->model
                 ->model($tableName)
                 ->insert([$data]);
+                print_r($result);
                 if(isset($result['changes'])) echo $result['changes'].' rows was inserted';
                 else echo $result['error'];
             }
