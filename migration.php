@@ -15,7 +15,7 @@ class Migration {
 
     private function createTableFile($tableName) { 
         $myfile = fopen($this->tablesPath.'/'.$tableName.'.php', "w") or die("Unable to open file!");
-        fwrite($myfile, $this->modelTemplate);
+        fwrite($myfile, $this->modelTemplate($tableName));
         fclose($myfile);
     }
 
@@ -29,30 +29,27 @@ class Migration {
     }
 
     public function newTable($tableName,$file) {
-        include_once __DIR__.'/types.php';
         include_once $this->tablesPath.'/'.$file;
         $result = $this->model->createTable($tableName,$table);
-        if(isset($result['result'])) {
-            echo "Table $tableName created. ";
+        if(isset($result['error'])) echo "Error: ".$result['error'].'
+';
+        else {
+            echo "Table $tableName created. 
+";
             if(count($data)) {
                 $result = $this->model
-                ->model($tableName)
-                ->insert([$data]);
+                ->table($tableName)
+                ->createMany($data);
+                echo 'inserted data: ';
                 print_r($result);
-                if(isset($result['changes'])) echo $result['changes'].' rows was inserted';
-                else echo $result['error'];
             }
-        } else echo "Error: ".$result['error'];
+        }
     }
 
     public function dropTable($tableName) {
         $result = $this->model->dropTable($tableName);
-        $this->result($result,"Table $tableName deleted.");
-    }
-
-    private function result($result,$msg) {
-        if(isset($result['result'])) echo $msg;
-        else echo "Error: ".$result['error'];
+        if(isset($result['error'])) echo $result['error'];
+        else echo "Table $tableName deleted.";
     }
 
     public function restoreTable($table) {
@@ -65,12 +62,11 @@ class Migration {
         include_once $this->tablesPath.'/'.$tableName.'.php';
         $array = [];
         for($i=0; $i<$times; $i++) {
-            $array[] = fake();
+            $array[] = call_user_func('fake_'.$tableName);
         }
-        print_r($array);
-        $this->model->model($tableName);
-        $result = $this->model->insert($array);
-        $this->result($result,'Done');
+        $this->model->table($tableName);
+        $result = $this->model->createMany($array);
+        print_r($result);
     }
 
     public function cli() {
@@ -99,7 +95,7 @@ class Migration {
                 $line = str_replace('model','',$line);
                 $line = trim($line,' ');
                 $line = trim(preg_replace('/\s\s+/', ' ', $line));
-                $this->model = $this->model->model($line);
+                $this->model = $this->model->table($line);
                 $model = $line;
             } else if($line == 'history') print_r(readline_list_history())."  \r\n";
             else if($line !== '') {
@@ -112,21 +108,23 @@ class Migration {
         // print_r(readline_info()); //dump variables
     }
 
-    public $modelTemplate = '<?php
+    public function modelTemplate($tableName) {
+        return '<?php
 $table = [
     "id"=> $types->id,
-    "username" => $types->text(50).$types->def(),
-    "password" => $types->text("1b").$types->def(),
-    "email" => $types->text("1b").$types->def(),
-    "name" => $types->text(50),
-    "last_name" => $types->text(50),
-    "middle_name" => $types->text(50),
-    "status" => $types-> num(1).$types->def("0"), // 1-active, 0-not active
-    "is_admin" => $types->num(1).$types->def("0"), // 1-admin, 0-not not admin
+    "username" => $types->notNull()->char(50),
+    "password" => $types->notNull()->varchar(),
+    "email" => $types->notNull()->char(),
+    "name" => $types->char(50),
+    "last_name" => $types->char(50),
+    "middle_name" => $types->char(50),
+    "status" => $types->def(0)->int(1), // 1-active, 0-not active
+    "is_admin" => $types->def(0)->int(1), // 1-admin, 0-not not admin
     "timestamp" => $types->timestamp
 ];
 
-function fake() {
+// faker documentation https://fakerphp.github.io/.
+function fake_'.$tableName.'() {
     $faker = \Faker\Factory::create();
     $fake = [
         "username" => $faker->userName(),
@@ -142,4 +140,6 @@ function fake() {
 
 $data = [];
 ';
+    }
+
 }

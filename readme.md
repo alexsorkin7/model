@@ -23,7 +23,7 @@ composer require also/model
 <?php
 namespace Also;
 include_once 'vendor/autoload.php';
-define('ROOT',__DIR__.'\\');
+define('ROOT',__DIR__.'/');
 
 $con = ROOT.'db/data.db', // DataBase for sqlite
 $con => array("server","username","password", "dbName"), // DataBase for mySql
@@ -34,13 +34,6 @@ $migrate = new Migration($tablePath,$model);
 $migrate->cli();
 
 ```
-
-If sqlite is not working, do the folowing:
-Inside php.ini, Remove the semicolon in front of:
-1. extension=pdo_sqlite # 
-2. extension=sqlite3 
-3. sqlite3.extension_dir = "path top php folder\ext"
-
 
 ## Migration and types
 
@@ -62,111 +55,48 @@ Example:
 $ php model.php table test
 ```
 
-The example above, creates file ``tablePath\test.php`` with $table and $fake variables. 
+The example above, creates file ``tablePath\test.php`` with $table, $data and fake function. 
 $table - includes the fields for creating new table with name test. 
-$table - includes fakers to put fake data inside db (after migration)
+fake_tableName - includes fakers to create fake data inside database
+$data = includes data to create on migration
 
-It may look like this:
-```php
-<?php
-namespace Also;
-
-$table = [
-    "id"=> $types->id,
-    "username" => $types->text(50).$types->def(),
-    "password" => $types->text("1b").$types->def(),
-    "email" => $types->text("1b").$types->def(),
-    "name" => $types->text(50),
-    "last_name" => $types->text(50),
-    "middle_name" => $types->text(50),
-    "status" => $types-> num(1).$types->def("0"), // 1-active, 0-not active
-    "is_admin" => $types->num(1).$types->def("0"), // 1-admin, 0-not not admin
-    "timestamp" => $types->timestamp
-];
-
-function fake() {
-    $faker = \Faker\Factory::create();
-    $fake = [
-        "username" => $faker->userName(),
-        "password" => $faker->password(),
-        "email" => $faker->email(),
-        "name" => $faker->name(),
-        "last_name" => $faker->lastName(),
-        "status" => 0,
-        "is_admin" => 0
-    ];
-    return $fake;
-}
-```
 For using faker - read here https://fakerphp.github.io/.
-The exmple above, using types.php to define types. 
 
 #### types
 
-##### **text**
+* 'char($size='')'
+* 'varchar($size='')'
+* 'text() - TEXT'
+* 'mtext() - MEDIUMTEXT'
+* 'ltext() =>  LONGTEXT'
+* 'bit($size ='')'
+* 'tinyInt($size ='')'
+* 'smallInt($size ='')'
+* 'mediumInt($size ='')'
+* 'int($size ='')'
+* 'bigInt($size ='')'
+* 'float($size ='')'
+* 'double($size ='',$d=2)'
+* '$id'
+* '$timestamp'
+* 'notNull()'
+* 'def($def = '')'
 
-  text is a function 
-  ```php
-  $types->text($size = '16b');
-  
-  ```
-  * size (minimum is 1, maximum is 4g):
-    * CHAR(size): 1-254
-    * TINYTEXT: 255 1b+
-    * VARCHAR(size): 256-65535 or 1b-256b
-    * TEXT: 65536 or 256b+
-    * MEDIUMTEXT: 65537-16777215 or 256b+ - 64k (by default)
-    * LONGTEXT: 16777216-4294967295 or 64k+ - 16m
+Example:
 
-
-##### **num**
-
-  syntax:
-  ```php
-  $types->num($size = '64m');
-  // minimum = 1 
-  // maximum = 268435456g
-  ```
-  * size
-    * BOOL: 0-2
-    * BIT(size): 0-64 or 1b
-    * TINYINT(size): 65-255 or 1b-4b
-    * SMALLINT(size): 256-65535 or 4b+ - 1k
-    * MEDIUMINT(size): 65536-16777215 or 1k+ - 256k
-    * INT(size): 16777216-4294967295 or 256k - 64m
-    * BIGINT(size): 4294967296-9223372036854775807 or 64m+ - 268435456g
-
-##### **float**
-
-  syntax:
-  ```php
-  $types->float($size=24,$d=2);
-  ```
-  * size
-    * FLOAT(size): If size is from 0 to 24, the data type becomes FLOAT(). If size is from 25 to 53, the data type becomes DOUBLE()
-    * DOUBLE(size, d): if d not undefined. The total number of digits is specified in size. The number of digits after the decimal point is specified in the d parameter
-
-
-##### **def**
-def is a function for define default value. 
-
-  Syntax:
-  ```javascript
-  $types->def($defaultValue = null)
-  ```
-  * defaultValue
-    * null - default value NOT NULL - by default
-    * Any string - default value for this field
-
-##### **Other types**
-DATE,DATETIME(fsp),TIME(fsp) and YEAR, not included because their syntax is simple and clear. 
-
-Althought that you can use those types with def() function. 
-
-For example:
 ```php
-'DATE'.def()
-'DATETIME'.def()
+$table = [
+    "id"=> $types->id,
+    "username" => $types->notNull()->char(50),
+    "password" => $types->notNull()->varchar(),
+    "email" => $types->notNull()->char(),
+    "name" => $types->char(50),
+    "last_name" => $types->char(50),
+    "middle_name" => $types->char(50),
+    "status" => $types->def(0)->int(1), // 1-active, 0-not active
+    "is_admin" => $types->def(0)->int(1), // 1-admin, 0-not not admin
+    "timestamp" => $types->timestamp
+];
 ```
 
 
@@ -176,6 +106,7 @@ For example:
 $ php model.php migrate
 ```
 If table not exists, it will be created. 
+
 
 ### delete table
 ```console
@@ -227,53 +158,72 @@ test: exit
 There are two options to choose a model:
 1. By passing model name to public property $table:
 ```php
-  $model->table = 'tableName';
+  $model->_table = 'tableName';
 ```
 
 2. By using model method:
 ```php
-$model->model('tableName);
+$model->table('tableName);
 ```
 
 There are few methods for query to model:
-1. insert([[fields],[filds],...])
-2. where([conditions],[options])
-3. all([options])
-4. delete([conditions])
-5. update([data],[conditions])
-6. delete([conditions])
-7. createTable(tableName,[fields])
-8. dropTable(tableName)
-9. query(sqlQuery)
+CRUD methods:
 
-All the methods, return $result, which looks like this: 
-``[$result,$error,$sql,$changes]``
+* create
+  * ``create($dataToInsert:array):rowOfInsertedData``
+  * ``createMany([$dataToInsert,$dataToInsert,...]):collection``
+* read
+  * ``all():conllection or row``
+  * ``get():conllection or row``
+  * ``first():row``
+* update
+  * ``set($dataToUpdate:array):mountOfChanges``
+* delete
+  * ``delete(id=''):mountOfChanges``
 
-1. $result - containes result of query
-2. $error - containes error if occured
-3. $sql - containes sql query to db
-4. $changes - containes number of affected rows
-5. $warnings (only in mysql) - warnings
+select methods
+* ``where($key,$value,$glue):modelObject``
+* ``and($key,$value,$glue):modelObject``
+* ``or($key,$value,$glue):modelObject``
+* ``not($key,$value,$glue):modelObject``
+* ``id($id):modelObject``
+
+order and limit
+* ``orderBy($field)::modelObject``
+* ``asc()::modelObject``
+* ``desc()::modelObject``
+* ``limit($amount)::modelObject``
+
+Other
+* ``query($sql)``
+* ``createTable($tableName,$tableFields):true``
+* ``dropTable($tableName):true``
+
+In case of error, ``array($error,$sql)`` will be retturned;
 
 
 Here the example for each query:
 
 ```php
+$model->table('test');
 
-$model->insert([
-    ['username'=>'Alex','password'=>'bbb','email'=>'aaa@mail.com']
+$model->create([
+  'username'=>'Alex',
+  'password'=>'bbb',
+  'email'=>'aaa@mail.com'
 ]);
-
-$model->where(
-    ["name <> 'NULL'", 'id>3'], // where
-    ['limit'=>5,'orderby'=>'username','order'=>'ASC'] // options
-); 
 
 $model->model('test')->all();
 
-$model->delete(["name IS NULL"]);
+$model->where('id',3,'>')
+->not('name','NULL')
+->orderBy('username')
+->asc()
+->limit(10);
 
-$model->update(['name'=>'Alex'],['id=80']);
+$model->where("name","NULL")->delete();
+
+$model->id(80)->set(['name'=>'Alex']);
 
 $model->createTable($tableName,$fields);
 

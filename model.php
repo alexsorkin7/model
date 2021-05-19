@@ -2,11 +2,19 @@
 namespace Also;
 
 class Model {
-    public $table = '';
+    public $_table = '';
     public $hash = PASSWORD_DEFAULT;
+    public $q = '';
+    public $where = '';
 
 	function __construct($con) {
 		if(gettype($con) == 'string') { // if sqlite
+        // Set sqlite settings in php.ini
+            $phpPath = str_replace('php.exe', '', PHP_BINARY).'/ext';
+            ini_set('extension','pdo_sqlite');
+            ini_set('extension','sqlite3');
+            ini_set('sqlite3.extension_dir',$phpPath);
+
             if (!file_exists(dirname($con))) mkdir(dirname($con), 0777, true);
 			$this->con = new \Sqlite3($con);
 		} else if(gettype($con) == 'array') { // if mysql
@@ -15,11 +23,11 @@ class Model {
 		}
 	}
 
-	public function model($tableName) {
-		$this->table = $tableName;
-        return $this;
-	}
-	
+    public function run() {
+        $this->q .= $this->where;
+        return $this->query($this->q);
+    }
+
 	public function query($q) {
         error_reporting(E_ERROR);
         preg_match_all('/\;/',$q,$matches);
@@ -34,18 +42,10 @@ class Model {
 		}
 	}
 
-    private function warnings($db) {
-        $array = [];
-        $j = mysqli_warning_count($db);
-        if ($j > 0) {
-            $e = mysqli_get_warnings($db);
-            for ($i = 0; $i < $j; $i++) {
-                $array[] = $e;
-                $e->next();
-            }
-        }
-        return $array;
-    }
+	public function table($tableName) {
+		$this->_table = $tableName;
+        return $this;
+	}
 
 	public function createTable($tableName,$fields) {
         $fieldString = '';
@@ -65,114 +65,142 @@ class Model {
         return $this->query($q);
     }
 
-    public function insert($arrays) {
-        if($this->table == '') return 'Please add tableName';
+    public function create($array) {
+        if($this->_table == '') return 'Please add tableName';
         $q = '';
-        foreach ($arrays as $array) {
-            $keys = '(';
-            $values = '(';
-            foreach ($array as $key => $value) {
-                $keys .= $key.',';
-                $value = $this->prepareValue($value,$key);
-                $values .= $value;
-            }
-            $values = substr_replace($values ,"", -1);
-            $keys = substr_replace($keys ,"", -1);
-            $keys .= ')';
-            $values .= ')';
-            $q .= "INSERT INTO ".$this->table." ".$keys." VALUES ".$values.';';
+        $keys = '(';
+        $values = '(';
+        foreach ($array as $key => $value) {
+            $keys .= $key.',';
+            $value = $this->prepareValue($value,$key).',';
+            $values .= $value;
         }
-        return $this->query($q);
+        $values = substr_replace($values ,"", -1);
+        $keys = substr_replace($keys ,"", -1);
+        $keys .= ')';
+        $values .= ')';
+        $q .= "INSERT INTO ".$this->_table." ".$keys." VALUES ".$values.';';
+        $result = $this->query($q);
+
+        if(gettype($result) !== 'array') {
+            return $this->where('id',$result)->get();
+        } else return $result;
     }
 
-    public function update($sets,$wheres) {
-        if($this->table == '') return 'Please add tableName';
-        $set = ' SET ';
+    public function createMany($arrays) {
+        $result = [];
+        foreach ($arrays as $key => $data) {
+            $result[] = $this->create($data);
+        }
+        return $result;
+    }
+
+    public function set($sets) {
+        if($this->_table == '') return 'Please add tableName';
+        $this->q = 'UPDATE '.$this->_table.' SET ';
         foreach ($sets as $key => $value) {
             $value = $this->prepareValue($value,$key);
-            $set .= " $key = $value";
+            $this->q .= " $key = $value,";
         }
-        $set = substr_replace($set ,"", -1);
-        $q = 'UPDATE '.$this->table.$set.$this->_where($wheres).';';
-        return $this->query($q);
+        $this->q = substr_replace($this->q ,"", -1);
+        return $this->run();
     }
 
-    private function prepareValue($value,$key) {
-        $values = '';
-        if($key == 'password') $value = password_hash($value, $this->hash); 
-        $value = str_replace("'",'',$value);
-        $value = str_replace("`",'',$value);
-        $value = str_replace('"','',$value);
-        $value = "'".$value."',";
-        return $value;
+    public function where($key,$value,$glue = '=') {
+        $value = $this->prepareValue($value,$key);
+        $this->where .= " WHERE $key $glue $value ";
+        return $this;
     }
 
-    public function all($options =[]) {
-        if($this->table == '') return 'Please add tableName';
-		$q = "SELECT * FROM ".$this->table." ".$this->options($options).';';
-		return $this->query($q);
+    public function all() {
+        if($this->_table == '') return 'Please add tableName';
+		$this->q = "SELECT * FROM ".$this->_table;
+		return $this->run();
     }
 
-    public function where($wheres,$options =[]) {
-        if($this->table == '') return 'Please add tableName';
-        $q = 'SELECT * FROM '
-        .$this->table.$this->_where($wheres)
-        .$this->options($options).';';
-        return $this->query($q);
+    public function first() {
+        $this->limit(1);
+        $this->get();
     }
 
-    public function delete($wheres) {
-        if($this->table == '') return 'Please add tableName';
-        $q = 'DELETE FROM '.$this->table.' '.$this->_where($wheres).';';
-        return $this->query($q);
+    public function get() {
+        if($this->_table == '') return 'Please add tableName';
+        $this->q = 'SELECT * FROM '.$this->_table;
+        return $this->run();
     }
 
-    private function options($options) {
-        $q = '';
-        if(isset($options['orderby'])) {
-            $q .= " ORDER BY ". $options['orderby'].' ';
-        }
-        if(isset($options['order'])) {
-            $q .= ' '.$options['order'].' ';
-        }
-        if(isset($options['limit']) && is_numeric($options['limit'])) {
-            $q .= " LIMIT ".$options['limit'].' ';
-        }
-        return $q;
+    public function id($id) {
+        $this->where = " WHERE id = $id ";
+        return $this;
     }
 
-    private function _where($wheres) {
-        $q = ' WHERE ';
-        foreach ($wheres as $key => $where) {
-            if($key < count($wheres) && $key > 0) {
-                if(strpos($where,'||') !== false) {
-                    $where = str_replace('||',' OR ',$where);
-                } else $where = ' AND '.$where;
-            }
-            $q .= $where;
-        }
-        return $q;
+    public function and($key,$value,$glue = '='){
+        $value = $this->prepareValue($value,$key);
+        $this->where .= " AND $key $glue $value ";
+        return $this;
+    }
+
+    public function or($key,$value,$glue = '='){
+        $value = $this->prepareValue($value,$key);
+        $this->where .= " OR $key $glue $value ";
+        return $this;
+    }
+
+    public function not($key,$value,$glue = '='){
+        $value = $this->prepareValue($value,$key);
+        $this->where .= " WHERE NOT $key $glue $value ";
+        return $this;
+    }
+
+    public function delete($id = '') {
+        if($this->_table == '') return 'Please add tableName';
+        if($id !== '') $id = " WHERE id= $id ";
+        $this->q = 'DELETE FROM '.$this->_table.$id;
+        return $this->run();
+    }
+
+    public function asc() {
+        $this->where .= " ASC ";
+        return $this;
+    }
+
+    public function desc() {
+        $this->where .= " DESC ";
+        return $this;
+    }
+
+    public function orderBy($order) {
+        $this->where .= " ORDER BY ". $order .' ';
+        return $this;
+    }
+
+    public function limit($amount) {
+        $this->where .= " LIMIT ".$amount.' ';
+        return $this;
     }
 
     private function getResult($result,$q,$db) {
-        $response = ['sql' => $q];
         if($db == 'sqlite') {
-            $response['error'] = $this->con->lastErrorMsg();
-            if($response['error'] == 'not an error')  {
-                $response['changes'] = $this->con->changes();
-                $response['result'] = $this->fetchSqlite($result);
-                $response['lastId'] = $this->con->lastInsertRowID();
-            }
+            $error = $this->con->lastErrorMsg();
+            if($error == 'not an error') {
+                if(strpos($q,'SELECT') !== false) $result = $this->fetchSqlite($result);
+                else if(strpos($q,'DELETE') !== false || strpos($q,'SET') !== false) $result = $this->con->changes();
+                else if(strpos($q,'INSERT') !== false ) $result = $this->con->lastInsertRowID();
+                else $result = true;
+            } else $result = ['sql' => $q,'error' => $error];
         } else if($db = 'mysql') {
-            $response['error'] = mysqli_error($this->con);
-            $response['warnings']=$this->warnings($this->con);
-            if($response['error'] == '') {
-                $response['changes'] = mysqli_affected_rows($this->con);
-                $response['result'] = $this->fetchMysql($result);
-                $response['lastId'] = $this->con->insert_id;
-            }
+            $error = mysqli_error($this->con);
+            if($error == '') {
+                if(strpos($q,'SELECT') !== false) $result = $this->fetchMysql($result);
+                else if(strpos($q,'DELETE') !== false || strpos($q,'SET') !== false) $result = mysqli_affected_rows($this->con);
+                else if(strpos($q,'INSERT') !== false ) $result = $this->con->insert_id;
+                else $result = true;
+            } else $result = ['sql' => $q,'error' => $error, 'warnings' => $this->warnings()];
         }
-        return $response;
+
+        $this->q = '';
+        $this->where = '';
+        return $result;
     }
 
     private function fetchSqlite($result) {
@@ -181,7 +209,8 @@ class Model {
             while ($row = $result->fetchArray(SQLITE3_ASSOC)) {
                 $array[] = $row;
             }
-            return $array;
+            if(count($array[0]) == 1) return $array[0][0];
+            else return $array[0];
         } else return $result;
     }
 
@@ -192,8 +221,34 @@ class Model {
                 $array[] = $row;
             }
         }
+        if(count($array) == 1) return $array[0];
+        else return $array;
+    }
+
+    private function warnings() {
+        $array = [];
+        $j = mysqli_warning_count($this->con);
+        if ($j > 0) {
+            $e = mysqli_get_warnings($this->con);
+            for ($i = 0; $i < $j; $i++) {
+                $array[] = $e;
+                $e->next();
+            }
+        }
         return $array;
     }
 
+    private function prepareValue($value,$key) {
+        if($key == 'password') $value = password_hash($value, $this->hash); 
+        if(gettype($value) == 'string') {
+            $value = str_replace("'",'',$value);
+            $value = str_replace("`",'',$value);
+            $value = str_replace('"','',$value);
+            $value = "'".$value."'";
+        }
+        return $value;
+    }
+
 }
+
 ?>
