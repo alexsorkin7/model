@@ -92,7 +92,8 @@ class Model {
         foreach ($arrays as $key => $data) {
             $result[] = $this->create($data);
         }
-        return $result;
+        if(count($result) == 1) return $result[0];
+        else return $result;
     }
 
     public function set($sets) {
@@ -210,7 +211,8 @@ class Model {
                 $array[] = $row;
             }
             if(count($array[0]) == 1) return $array[0][0];
-            else return $array[0];
+            else if(isset($array[0])) return $array[0];
+            else return $array;
         } else return $result;
     }
 
@@ -239,7 +241,7 @@ class Model {
     }
 
     private function prepareValue($value,$key) {
-        if($key == 'password') $value = password_hash($value, $this->hash); 
+        if($key == 'password') $value = password_hash($value, $this->hash);
         if(gettype($value) == 'string') {
             $value = str_replace("'",'',$value);
             $value = str_replace("`",'',$value);

@@ -39,7 +39,7 @@ class Migration {
             if(count($data)) {
                 $result = $this->model
                 ->table($tableName)
-                ->createMany($data);
+                ->createMany([$data]);
                 echo 'inserted data: ';
                 print_r($result);
             }
