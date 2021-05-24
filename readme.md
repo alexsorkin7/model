@@ -64,35 +64,35 @@ For using faker - read here https://fakerphp.github.io/.
 
 #### types
 
-* 'char($size='')'
-* 'varchar($size='')'
-* 'text() - TEXT'
-* 'mtext() - MEDIUMTEXT'
-* 'ltext() =>  LONGTEXT'
-* 'bit($size ='')'
-* 'tinyInt($size ='')'
-* 'smallInt($size ='')'
-* 'mediumInt($size ='')'
-* 'int($size ='')'
-* 'bigInt($size ='')'
-* 'float($size ='')'
-* 'double($size ='',$d=2)'
-* '$id'
-* '$timestamp'
-* 'notNull()'
-* 'def($def = '')'
+* ``char($size='')``
+* ``varchar($size='')``
+* ``text() - TEXT``
+* ``mtext() - MEDIUMTEXT``
+* ``ltext() =>  LONGTEXT``
+* ``bit($size ='')``
+* ``tinyInt($size ='')``
+* ``smallInt($size ='')``
+* ``mediumInt($size ='')``
+* ``int($size ='')``
+* ``bigInt($size ='')``
+* ``float($size ='')``
+* ``double($size ='',$d=2)``
+* ``$id``
+* ``$timestamp``
+* ``null()``
+* ``def($def = '')``
 
 Example:
 
 ```php
 $table = [
     "id"=> $types->id,
-    "username" => $types->notNull()->char(50),
-    "password" => $types->notNull()->varchar(),
-    "email" => $types->notNull()->char(),
-    "name" => $types->char(50),
-    "last_name" => $types->char(50),
-    "middle_name" => $types->char(50),
+    "username" => $types->char(50),
+    "password" => $types->varchar(),
+    "email" => $types->char(),
+    "name" => $types->null()->char(50),
+    "last_name" => $types->null()->char(50),
+    "middle_name" => $types->null()->char(50),
     "status" => $types->def(0)->int(1), // 1-active, 0-not active
     "is_admin" => $types->def(0)->int(1), // 1-admin, 0-not not admin
     "timestamp" => $types->timestamp
@@ -176,10 +176,11 @@ CRUD methods:
   * ``all():conllection or row``
   * ``get():conllection or row``
   * ``first():row``
+  * ``load():collection``
 * update
   * ``set($dataToUpdate:array):mountOfChanges``
 * delete
-  * ``delete(id=''):mountOfChanges``
+  * ``delete($tables=''):mountOfChanges``
 
 select methods
 * ``where($key,$value,$glue):modelObject``
@@ -205,31 +206,45 @@ In case of error, ``array($error,$sql)`` will be retturned;
 Here the example for each query:
 
 ```php
-$model->table('test');
+// Define table
+  $model->table('questionnaire');
 
-$model->create([
+$data = [
   'username'=>'Alex',
   'password'=>'bbb',
   'email'=>'aaa@mail.com'
-]);
+];
 
-$model->model('test')->all();
+// Create
+  $model->create($data);
+  $model->createMany([$data,$data]);
+  $model->belongsTo('user',5)->create($data); //add to all user_id=5
 
-$model->where('id',3,'>')
-->not('name','NULL')
-->orderBy('username')
-->asc()
-->limit(10);
+// Read
+  $model->all();
+  $model->belongsTo('user',5)->all(); // all with user_id=5
 
-$model->where("name","NULL")->delete();
+  $model->where('id',3,'>')
+  ->not('name','NULL')
+  ->orderBy('username')
+  ->asc()
+  ->limit(10);
 
-$model->id(80)->set(['name'=>'Alex']);
+  $model->where("name","NULL")->delete();
+  $model->id(6)->delete();
+  $model->id(6)->('questions.answers'); 
 
-$model->createTable($tableName,$fields);
 
-$model->dropTable($tableName);
+  $model->id(80)->set(['name'=>'Alex']);
 
-$model->query('SELECT * FROM test;);
+// Create and delete table
+  $model->createTable($tableName,$fields);
+  $model->dropTable($tableName);
+
+
+// Query and load
+  $model->query('SELECT * FROM test;');
+  $model->id(5)->load('question.answer');
 
 ```
 

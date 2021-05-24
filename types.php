@@ -14,12 +14,12 @@ class Types {
         else if($p !== '') return $com.'('.$p.') ';
         else if($p !== '' && $p1 !== '') return $com.'('.$p.','.$p1.') ';
     }
-    public $id ='INTEGER DEFAULT AUTO_INCREMENT PRIMARY KEY'; // for sqlite
+    public $id ='INTEGER DEFAULT AUTO_INCREMENT PRIMARY KEY '; // for sqlite
     public $timestamp = 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ';
-    public function notNull() {$this->default = " NOT NULL";return $this;}
+    public function null() {$this->default = " DEFAULT NULL";return $this;}
     public function def($def) {$this->default = " DEFAULT '$def'";return $this;}
     public function char($size='') {return $this->param("CHAR",$size).$this->default;}
-    public function varchar($size='') {return $this->param("VARCHAR",$size).$this->default;}
+    public function varchar($size=16383) {return "VARCHAR($size) ".$this->default;}
     public function text() {return "TEXT ".$this->default;}
     public function mtext() {return "MEDIUMTEXT ".$this->default;}
     public function ltext() {return "LONGTEXT ".$this->default;}
@@ -32,7 +32,5 @@ class Types {
     public function float($size ='') {return $this->param("FLOAT",$size).$this->default;}
     public function double($size ='',$d=2) {return $this->param("DOUBLE",$size,$d).$this->default;}
 }
-
-$types = new Types();
 
 ?>
