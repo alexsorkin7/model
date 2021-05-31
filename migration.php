@@ -1,6 +1,6 @@
 <?php
 namespace Also;
-
+ 
 class Migration {
     public $tablesPath;
     public $model;

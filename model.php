@@ -1,6 +1,6 @@
 <?php
 namespace Also;
-
+ 
 class Model {
     public $_table = '';
     public $hash = PASSWORD_DEFAULT;

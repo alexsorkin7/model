@@ -1,6 +1,6 @@
 <?php
 namespace Also;
-
+ 
 class Types {
     // public $id = [
     //     'INTEGER DEFAULT AUTO_INCREMENT PRIMARY KEY', // for sqlite
